@@ -4,8 +4,24 @@
 [![Case study](https://img.shields.io/badge/github.io-case%20study%2004-24292f?logo=github&logoColor=white)](https://whatheheckisthis.github.io/case-studies/spde-gmrf-gpu-edge/)
 ![Python](https://img.shields.io/badge/python-3.11-blue)
 ![C99](https://img.shields.io/badge/C-C99-555555)
-![CUDA](https://img.shields.io/badge/CUDA-not%20compiled-lightgrey)
 ![CARLA](https://img.shields.io/badge/CARLA-design%20only-lightgrey)
+
+NVIDIA stack (host estimation):
+
+[![CUDA](https://img.shields.io/badge/NVIDIA-CUDA-76B900?logo=nvidia&logoColor=white)](https://docs.nvidia.com/cuda/)
+[![cuSPARSE](https://img.shields.io/badge/cuSPARSE-CSR%20%7C%20SpMM-76B900?logo=nvidia&logoColor=white)](https://docs.nvidia.com/cuda/cusparse/)
+[![cuDSS](https://img.shields.io/badge/cuDSS-SPD%20Cholesky%20%7C%20refactorisation-76B900?logo=nvidia&logoColor=white)](https://docs.nvidia.com/cuda/cudss/)
+[![cuSOLVER](https://img.shields.io/badge/cuSOLVER-not%20used-lightgrey?logo=nvidia&logoColor=white)](https://docs.nvidia.com/cuda/cusolver/)
+![GPU build](https://img.shields.io/badge/GPU%20build-not%20compiled-lightgrey)
+
+Arm Cortex-M build (device filtering):
+
+[![Cortex-M4F](https://img.shields.io/badge/Arm-Cortex--M4F-0091BD?logo=arm&logoColor=white)](https://developer.arm.com/Processors/Cortex-M4)
+[![CMSIS-NN](https://img.shields.io/badge/CMSIS--NN-arm__fully__connected__s8-0091BD?logo=arm&logoColor=white)](https://github.com/ARM-software/CMSIS-NN)
+![int8](https://img.shields.io/badge/filter-int8%20%7C%2040%20MACs%2Fsample-0091BD)
+![Flash](https://img.shields.io/badge/flash-1%2C998%20B-0091BD)
+![RAM](https://img.shields.io/badge/state-16%20B%20%7C%20stack%20252%20B-0091BD)
+![Latency](https://img.shields.io/badge/latency-not%20measured-lightgrey)
 
 On-device lane detection for Android with OpenCV, revived as the perception front end for the case study Lifting SPDE-GMRF Fields: GPU Estimation and On-Device Forward Filtering. This repository implements the pipeline that study describes: a sparse SPDE precision estimated on a GPU, a sparse projector from mesh nodes to sensors, and an int8 forward filter for Arm Cortex-M. It is a system design with a tested reference implementation. It is not a benchmark: no GPU timing, device latency or recorded-drive accuracy has been measured.
 
@@ -13,6 +29,7 @@ The key words MUST, MUST NOT, SHALL, SHOULD and MAY in this document are to be i
 
 ## Contents
 
+- [Technology Stack](#technology-stack)
 - [Scope](#scope)
 - [Lineage](#lineage)
 - [Motivation](#motivation)
@@ -30,6 +47,20 @@ The key words MUST, MUST NOT, SHALL, SHOULD and MAY in this document are to be i
 - [Security](#security)
 - [Attribution](#attribution)
 - [Licence](#licence)
+
+## Technology Stack
+
+| Layer | Component | Role | Status in this repository |
+|---|---|---|---|
+| Host, NVIDIA | CUDA | GPU runtime for estimation | Code in `gpu/`; not compiled or run |
+| Host, NVIDIA | cuSPARSE | Q in CSR form, sparse products (`cusparseSpMM`) | Used in `gpu/src/spde_gpu.cu` |
+| Host, NVIDIA | cuDSS | SPD Cholesky: analysis once, refactorisation and solve per theta, factor diagonal for log\|Q\| | Used in `gpu/src/spde_gpu.cu` |
+| Host, NVIDIA | cuSOLVER | Dense sub-problems; sparse Cholesky module named in the case study, now deprecated | Not used |
+| Host, CPU reference | Python, NumPy, SciPy | FEM assembly, symbolic and numeric Cholesky, estimation, export | Tested in CI |
+| Device, Arm | Cortex-M4F | Target for the int8 forward filter | Cross-compiled with zig cc 0.17.1 (clang) at `-Os`; 1,998 bytes of flash, 16 bytes of state, at most 252 bytes of stack |
+| Device, Arm | CMSIS-NN | `arm_fully_connected_s8` for A^T alpha_(t-1) | Backend written; checked against stub headers only |
+| Device, portable | C99 | Reference int8 kernel with identical integer semantics | Built with gcc in CI; bit-exact with the Python integer version |
+| Simulation | CARLA, OpenCV, R-CNN | Closed loop described in the journal entry | Design only |
 
 ## Scope
 
