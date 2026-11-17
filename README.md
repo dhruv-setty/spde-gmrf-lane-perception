@@ -21,6 +21,7 @@ The key words MUST, MUST NOT, SHALL, SHOULD and MAY in this document are to be i
 - [The Two-Layer Model](#the-two-layer-model)
 - [Simulation Loop with CARLA](#simulation-loop-with-carla)
 - [Method](#method)
+- [GPU and Device Libraries](#gpu-and-device-libraries)
 - [Evidence](#evidence)
 - [Requirements](#requirements)
 - [Build and Test](#build-and-test)
@@ -247,6 +248,34 @@ The prediction step uses the CMSIS-NN kernel when `HMM_USE_CMSIS_NN` is defined.
 ### Why the split works
 
 The expensive work, factorising a large sparse precision, depends only on how fast the environment changes, so it can run every few seconds or minutes. The cheap work depends on every sample, and its cost is fixed by the number of regimes, not by the size of the field.
+
+## GPU and Device Libraries
+
+This section sets out the role of each NVIDIA and Arm library in the design and states which parts this repository uses. Roles marked as not used describe where a library would fit; they are not implemented here.
+
+### Host side: NVIDIA CUDA libraries
+
+| Library | Role in the design | In this repository |
+|---|---|---|
+| cuSPARSE | Matrix construction and sparse products. Holds the sparse precision Q in CSR form and performs the sparse matrix-vector and matrix-matrix products used during iterative optimisation. | Used: `cusparseCreateCsr` for Q and `cusparseSpMM` for sparse products in `gpu/src/spde_gpu.cu`. |
+| cuDSS | Direct sparse solver. Estimating the GMRF requires log\|Q\|, which comes from the sparse Cholesky factorisation Q = L L^T as 2 sum log L_ii. cuDSS performs that exact factorisation on the GPU. Because the pattern of Q is fixed, the analysis phase runs once and only the numeric refactorisation repeats for each candidate theta. | Used: SPD matrix type, `CUDSS_PHASE_ANALYSIS` once, then `CUDSS_PHASE_REFACTORIZATION` and `CUDSS_PHASE_SOLVE`, with `CUDSS_DATA_DIAG` for the factor diagonal. |
+| cuSOLVER | Dense sub-problems: dense covariance blocks, eigenvalue decompositions for spectral approximations, and small dense systems arising when optimising the low-dimensional hyperparameter vector theta. The case study names its sparse Cholesky module for the factorisation; NVIDIA marks that module as deprecated, so a new build SHOULD use cuDSS for the sparse factorisation. | Not used. theta = (kappa, tau) has two components and is optimised on the host. |
+
+Fill-in is controlled by ordering, not by the solver alone. The factorisation SHOULD use a fill-reducing ordering (reverse Cuthill-McKee, AMD or METIS nested dissection); Figure 3 and the Evidence section show the effect on a 20 by 20 lattice.
+
+### The lifting step
+
+Once the GPU has estimated theta_hat and factorised the field, the high-dimensional SPDE-GMRF model is distilled into a compact, discrete-time representation that a device can run. In this repository, and in the case study, that representation is the sparse projector P applied to x_hat: each sensor receives an offset P x_hat formed from three barycentric weights, and the device runs the four-regime HMM using those offsets. A reduced-rank Kalman filter over the field, or a learned neural surrogate, are alternative compact forms. Neither is implemented here.
+
+### Device side: Arm CMSIS-NN forward filtering
+
+Cortex-M microcontrollers do not have the memory or floating-point throughput to run sparse Cholesky factorisations on large meshes. They SHALL run only the forward filtering step: predicting the next state and updating it with local sensor measurements, once per sample.
+
+| Aspect | Design | In this repository |
+|---|---|---|
+| Quantised execution | CMSIS-NN provides int8 and int16 kernels. The forward filter is expressed in kernel form: a state-transition operator as a fully connected layer and, for filters over the field itself, as 1D or 2D convolutions or graph message passing over local mesh neighbourhoods. | The 4 by 4 transition product A^T alpha_(t-1) runs as `arm_fully_connected_s8` when `HMM_USE_CMSIS_NN` is defined, with a portable C99 kernel of identical integer semantics otherwise. A field-level filter in convolution or message-passing form is not implemented. |
+| Locality | A GMRF node depends only on its immediate neighbours, so the sparse products in a forward filter reduce to small, local multiply-accumulate (MAC) operations, which CMSIS-NN executes with the SIMD instructions available on Cortex-M cores. | The four-regime recursion needs 16 MACs, four multiplies and a fixed-point normalisation per sample. Belief underflow is prevented by rescaling. |
+| Memory and latency | Small state and local operations keep RAM use and per-sample cost low. | Not measured. No latency or memory figure SHALL be quoted until it is measured on a target. |
 
 ## Evidence
 
