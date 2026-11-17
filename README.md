@@ -1,11 +1,5 @@
 # android-opencv-lanedetection: SPDE-GMRF Estimation and On-Device Forward Filtering
 
-[![CI](https://github.com/whatheheckisthis/android-opencv-lanedetection-master/actions/workflows/ci.yml/badge.svg)](https://github.com/whatheheckisthis/android-opencv-lanedetection-master/actions/workflows/ci.yml)
-[![Case study](https://img.shields.io/badge/github.io-case%20study%2004-24292f?logo=github&logoColor=white)](https://whatheheckisthis.github.io/case-studies/spde-gmrf-gpu-edge/)
-![Python](https://img.shields.io/badge/python-3.11-blue)
-![C99](https://img.shields.io/badge/C-C99-555555)
-![CARLA](https://img.shields.io/badge/CARLA-design%20only-lightgrey)
-
 NVIDIA stack (host estimation):
 
 [![CUDA](https://img.shields.io/badge/NVIDIA-CUDA-76B900?logo=nvidia&logoColor=white)](https://docs.nvidia.com/cuda/)
