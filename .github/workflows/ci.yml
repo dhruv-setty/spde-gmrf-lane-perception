@@ -1,0 +1,23 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Python dependencies
+        run: pip install -r python/requirements.txt
+      - name: Python tests (mesh, FEM, SPDE precision, projector, estimation, fill-in, int8 filter)
+        env:
+          CC: gcc
+        run: python -m pytest -s
+      - name: Firmware host tests (portable C reference kernel)
+        run: make -C firmware test CC=gcc WERROR=1
+      # The CUDA estimation in gpu/ is not built here: GitHub-hosted runners have no GPU.
