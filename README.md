@@ -12,10 +12,6 @@ Arm Cortex-M build (device filtering):
 
 [![Cortex-M4F](https://img.shields.io/badge/Arm-Cortex--M4F-0091BD?logo=arm&logoColor=white)](https://developer.arm.com/Processors/Cortex-M4)
 [![CMSIS-NN](https://img.shields.io/badge/CMSIS--NN-arm__fully__connected__s8-0091BD?logo=arm&logoColor=white)](https://github.com/ARM-software/CMSIS-NN)
-![int8](https://img.shields.io/badge/filter-int8%20%7C%2040%20MACs%2Fsample-0091BD)
-![Flash](https://img.shields.io/badge/flash-1%2C998%20B-0091BD)
-![RAM](https://img.shields.io/badge/state-16%20B%20%7C%20stack%20252%20B-0091BD)
-![Latency](https://img.shields.io/badge/latency-not%20measured-lightgrey)
 
 On-device lane detection for Android with OpenCV, revived as the perception front end for the case study Lifting SPDE-GMRF Fields: GPU Estimation and On-Device Forward Filtering. This repository implements the pipeline that study describes: a sparse SPDE precision estimated on a GPU, a sparse projector from mesh nodes to sensors, and an int8 forward filter for Arm Cortex-M. It is a system design with a tested reference implementation. It is not a benchmark: no GPU timing, device latency or recorded-drive accuracy has been measured.
 
