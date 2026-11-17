@@ -22,6 +22,7 @@ The key words MUST, MUST NOT, SHALL, SHOULD and MAY in this document are to be i
 - [Simulation Loop with CARLA](#simulation-loop-with-carla)
 - [Method](#method)
 - [GPU and Device Libraries](#gpu-and-device-libraries)
+- [Operation Counts and Footprint](#operation-counts-and-footprint)
 - [Evidence](#evidence)
 - [Requirements](#requirements)
 - [Build and Test](#build-and-test)
@@ -275,7 +276,63 @@ Cortex-M microcontrollers do not have the memory or floating-point throughput to
 |---|---|---|
 | Quantised execution | CMSIS-NN provides int8 and int16 kernels. The forward filter is expressed in kernel form: a state-transition operator as a fully connected layer and, for filters over the field itself, as 1D or 2D convolutions or graph message passing over local mesh neighbourhoods. | The 4 by 4 transition product A^T alpha_(t-1) runs as `arm_fully_connected_s8` when `HMM_USE_CMSIS_NN` is defined, with a portable C99 kernel of identical integer semantics otherwise. A field-level filter in convolution or message-passing form is not implemented. |
 | Locality | A GMRF node depends only on its immediate neighbours, so the sparse products in a forward filter reduce to small, local multiply-accumulate (MAC) operations, which CMSIS-NN executes with the SIMD instructions available on Cortex-M cores. | The four-regime recursion needs 16 MACs, four multiplies and a fixed-point normalisation per sample. Belief underflow is prevented by rescaling. |
-| Memory and latency | Small state and local operations keep RAM use and per-sample cost low. | Not measured. No latency or memory figure SHALL be quoted until it is measured on a target. |
+| Memory and latency | Small state and local operations keep RAM use and per-sample cost low. | Footprint measured: 1,998 bytes of flash, 16 bytes of state and at most 252 bytes of stack, excluding the runtime division routine (see [Operation Counts and Footprint](#operation-counts-and-footprint)). Latency is not measured. |
+
+## Operation Counts and Footprint
+
+The table below measures the work in each stage as multiply-accumulate operations (MACs), and each row names the matrix it is derived from. Host counts are computed from the sparsity pattern of that matrix by `python/tools/mac_table.py`, on the 16 by 16 estimation mesh (n = 256, 200 sensors, 64 device sites) and on the 20 by 20 lattice of Figure 3. For a factor whose column j has eta_j entries below the diagonal, the factorisation costs sum_j eta_j (eta_j + 1) / 2 MACs, the two triangular solves cost 2 (nnz(L) - n), and a sparse product M x costs nnz(M). The tests in `python/tests/test_mac_table.py` check that each row agrees with its matrix.
+
+### Host: per evaluation of theta
+
+| Stage | Matrix | n | nnz | MACs | Per |
+|---|---|---|---|---|---|
+| Assemble Q(theta) values | Q (16x16 mesh) | 256 | 3,012 | 9,036 | theta (multiplies) |
+| Sparse product Q x | Q (16x16 mesh) | 256 | 3,012 | 3,012 | product |
+| Cholesky of Q | L of Q, RCM | 256 | 5,896 | 72,538 | theta |
+| Cholesky of Q + P^T P / sigma^2 | L of posterior precision, RCM | 256 | 5,896 | 72,538 | theta |
+| Posterior mean solve | L of posterior precision | 256 | 5,896 | 11,280 | right-hand side |
+| Sensor product P^T y | P (200 sensors) | 200 | 600 | 600 | right-hand side |
+| Lift x_hat to device sites | P_dev (64 sites) | 64 | 192 | 192 | re-estimation |
+| Cholesky, 20x20 lattice, RCM | L of Q (Figure 3) | 400 | 11,378 | 174,362 | theta |
+| Cholesky, 20x20 lattice, scrambled (seed 0) | L of Q (Figure 3) | 400 | 45,258 | 3,877,939 | theta |
+
+The same 20 by 20 matrix costs 174,362 MACs to factorise after reverse Cuthill-McKee and 3,877,939 in the scrambled order, a factor of about 22. This is the cost that Figure 3 shows as fill-in, and it is the reason the factorisation SHOULD be reordered. On the estimation mesh, adding P^T P / sigma^2 to Q adds no nonzeros to the factor (5,896 in both), because each sensor couples only the three nodes of its triangle.
+
+### Device: per sample
+
+| Stage | Matrix | Entries | MACs |
+|---|---|---|---|
+| Prediction A^T alpha_(t-1) | A^T (4x4, int8) | 16 | 16 |
+| Emission b_k(y_t) | mu, 1/sigma (4x2) and P x_hat | 8 | 16 |
+| Update and normalise | belief alpha_t (4, int8) | 4 | 8 |
+| Total per sample |  |  | 40 |
+
+The device count is read from the loops of `hmm_step` and does not depend on the mesh: a test checks that it is 40 MACs for both an 8 by 8 and a 16 by 16 mesh. The only link from the field to the device is one int16 lifted offset per site, P x_hat, from the 64 by 256 projector with 192 nonzeros.
+
+### Device: static footprint
+
+Measured by `firmware/tools/footprint.py`: the portable filter and the generated model cross-compiled for Cortex-M4F at `-Os` with zig cc 0.17.1 (clang). Section sizes are read from the object files; stack frames are read from the generated assembly.
+
+| Unit | text (bytes) | rodata (bytes) | bss (bytes) |
+|---|---|---|---|
+| hmm_filter.c | 880 | 0 | 0 |
+| hmm_fc_s8_ref.c | 330 | 0 | 0 |
+| hmm_exp_lut.c (exp2 table, 256 x uint16) | 0 | 512 | 0 |
+| Generated model (A^T, emission constants, 64 offsets) | 0 | 276 | 0 |
+| Filter state | 0 | 0 | 16 |
+| Total | 1,210 | 788 | 16 |
+
+| Function | Stack frame (bytes) |
+|---|---|
+| hmm_step | 176 |
+| hmm_fc_s8 | 28 |
+| hmm_fc_s8_ref | 48 |
+| hmm_mode | 8 |
+| hmm_requantize, hmm_exp_neg_q15 | 0 |
+
+Flash use is 1,998 bytes and RAM use is 16 bytes of state, with a stack depth of at most 252 bytes along hmm_step, hmm_fc_s8 and hmm_fc_s8_ref. These figures exclude the compiler runtime: the normalisation divides 64-bit integers, which calls `__aeabi_ldivmod` four times per sample. That routine's size and cycle cost depend on the toolchain and were not measured. The CMSIS-NN build was not measured.
+
+Not measured: cycles or latency per sample on a Cortex-M device, and GPU time per evaluation of theta. A MAC count is not a latency; no time figure SHALL be derived from this table without a measurement on the target.
 
 ## Evidence
 
@@ -312,6 +369,8 @@ pip install -r python/requirements.txt
 python -m pytest -s                  # Python reference and C kernel cross-check
 make -C firmware test                # host build of the forward filter
 python -m spdegmrf.export            # from python/: regenerate firmware headers
+python python/tools/mac_table.py     # operation counts per stage, from the matrices
+(cd firmware && python tools/footprint.py)   # Cortex-M4F footprint; needs pyelftools and CC_M4
 ```
 
 On a machine with CUDA and cuDSS:
@@ -330,9 +389,10 @@ Continuous integration runs the Python tests and the firmware host tests on Ubun
 python/spdegmrf/   mesh, FEM assembly, SPDE precision, sparse Cholesky, projector,
                    estimation, lattice fill-in, float HMM filter, int8 quantisation, export
 python/tests/      unit tests for every module above
-python/tools/      fill-in figure script
+python/tools/      fill-in figure script and operation-count table
 gpu/               CUDA estimation with cuSPARSE and cuDSS, CMake, CPU comparison script
-firmware/          C99 forward filter, portable int8 kernel, CMSIS-NN backend, host tests
+firmware/          C99 forward filter, portable int8 kernel, CMSIS-NN backend, host tests,
+                   Cortex-M4F footprint script
 docs/              regenerated fill-in figure; docs/figures/ holds the case study figures
 .github/workflows/ continuous integration
 ```
