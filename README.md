@@ -1,14 +1,9 @@
 # android-opencv-lanedetection: SPDE-GMRF Estimation and On-Device Forward Filtering
 
-NVIDIA stack (host estimation):
-
 [![CUDA](https://img.shields.io/badge/NVIDIA-CUDA-76B900?logo=nvidia&logoColor=white)](https://docs.nvidia.com/cuda/)
 [![cuSPARSE](https://img.shields.io/badge/cuSPARSE-CSR%20%7C%20SpMM-76B900?logo=nvidia&logoColor=white)](https://docs.nvidia.com/cuda/cusparse/)
 [![cuDSS](https://img.shields.io/badge/cuDSS-SPD%20Cholesky%20%7C%20refactorisation-76B900?logo=nvidia&logoColor=white)](https://docs.nvidia.com/cuda/cudss/)
 [![cuSOLVER](https://img.shields.io/badge/cuSOLVER-not%20used-lightgrey?logo=nvidia&logoColor=white)](https://docs.nvidia.com/cuda/cusolver/)
-
-Arm Cortex-M build (device filtering):
-
 [![Cortex-M4F](https://img.shields.io/badge/Arm-Cortex--M4F-0091BD?logo=arm&logoColor=white)](https://developer.arm.com/Processors/Cortex-M4)
 [![CMSIS-NN](https://img.shields.io/badge/CMSIS--NN-arm__fully__connected__s8-0091BD?logo=arm&logoColor=white)](https://github.com/ARM-software/CMSIS-NN)
 
