@@ -5,6 +5,7 @@
 ![Python](https://img.shields.io/badge/python-3.11-blue)
 ![C99](https://img.shields.io/badge/C-C99-555555)
 ![CUDA](https://img.shields.io/badge/CUDA-not%20compiled-lightgrey)
+![CARLA](https://img.shields.io/badge/CARLA-design%20only-lightgrey)
 
 On-device lane detection for Android with OpenCV, revived as the perception front end for the case study Lifting SPDE-GMRF Fields: GPU Estimation and On-Device Forward Filtering. This repository implements the pipeline that study describes: a sparse SPDE precision estimated on a GPU, a sparse projector from mesh nodes to sensors, and an int8 forward filter for Arm Cortex-M. It is a system design with a tested reference implementation. It is not a benchmark: no GPU timing, device latency or recorded-drive accuracy has been measured.
 
@@ -17,6 +18,8 @@ The key words MUST, MUST NOT, SHALL, SHOULD and MAY in this document are to be i
 - [Motivation](#motivation)
 - [Objectives](#objectives)
 - [Assumptions](#assumptions)
+- [The Two-Layer Model](#the-two-layer-model)
+- [Simulation Loop with CARLA](#simulation-loop-with-carla)
 - [Method](#method)
 - [Evidence](#evidence)
 - [Requirements](#requirements)
@@ -39,6 +42,8 @@ Out of scope:
 
 - GPU timings, device latency on Cortex-M, and accuracy on recorded drives.
 - Fitting the transition and emission parameters to recorded data.
+- Backward sampling and the EM or Laplace update of the regime parameters described in case study 03.
+- The CARLA simulation loop, R-CNN detection and the UART link to the MCU described in the study's journal entry.
 
 Known limitations:
 
@@ -73,6 +78,113 @@ A dashboard-mounted phone can detect lane markings and estimate the Standard Dev
 - The field enters the lateral offset channel only, through the lifted offset of the current site.
 - Transition and emission parameters are illustrative and have not been fitted to recorded data.
 - All data used by the tests are simulated with fixed seeds.
+
+## The Two-Layer Model
+
+This section follows case study 03, [Hidden Markov Models with Gaussian Fields for Behavioural Time Series](https://whatheheckisthis.github.io/case-studies/hmm-gaussian-fields/), which defines the model that this repository estimates and filters.
+
+Human behaviour does two things at once: it jumps between qualitative modes, and it drifts slowly inside them. A hidden Markov model captures the jumps. A Gaussian Markov random field captures the drift. Joined together, and kept sparse through the SPDE approach, the model remains small enough to filter in real time.
+
+| Layer | Representation |
+|---|---|
+| Discrete | HMM over calm, alert, high stress and panic, K = 4 |
+| Continuous | Gaussian field with sparse precision Q(theta) |
+| Scaling | SPDE link from Matern fields to GMRFs |
+
+![Case study 03, Figure 1. Two latent layers, one observation](docs/figures/hmm-graphical-model.png)
+
+Case study 03, Figure 1. Two latent layers, one observation. The regime chain S_t moves through the transition matrix A. The field x_t is a Gaussian Markov structure with precision Q(theta). Each observation depends on both: y_t = mu_S + H x_t + e_t, with noise e_t ~ N(0, Sigma_S) set by the current regime.
+
+### Why a plain HMM is not enough
+
+A standard HMM assumes that, given the regime, observations are independent draws from a fixed distribution. Behavioural signals break that assumption. Fatigue builds over a drive, environmental pressure rises and falls, and nearby sensors move together. Forcing that slow variation into discrete states either needs far more states than the problem has meaning for, or it appears as spurious regime switches. Neither helps an interface decide when to escalate. A second, continuous latent layer resolves this: the regimes stay few and interpretable, and the field absorbs the gradual drift, the spatial proximity and the non-stationary noise around them.
+
+### The HMM backbone
+
+![Case study 03, Figure 2. Regimes and transitions](docs/figures/hmm-regimes.png)
+
+Case study 03, Figure 2. Regimes and transitions. Each regime has its own emission N(mu_k + H x_t, Sigma_k). Most mass sits on self-transitions and neighbours, but the model keeps a direct path such as a_14 from calm to panic, because the moments that matter most are the ones with no gradual build-up. The int8 model in this repository MUST retain a nonzero a_14 after quantisation; the tests check this.
+
+### Keeping the field sparse with SPDE
+
+A Gaussian field with a Matern covariance is the natural choice for smooth variation, but its covariance matrix is dense, and every likelihood evaluation would cost a dense factorisation. The SPDE approach of Lindgren, Rue and Lindstrom replaces it. A Matern field is the solution of (kappa^2 - Laplacian)^(alpha/2) (tau x) = W, driven by white noise W. Solving that equation with finite elements gives a Gaussian Markov random field whose precision is sparse. For alpha = 2, Q = tau^2 (kappa^4 C + 2 kappa^2 G + G C^-1 G), where C is the lumped mass matrix and G the stiffness matrix.
+
+![Case study 03, Figure 3. Dense covariance against sparse precision](docs/figures/hmm-sparse-precision.png)
+
+Case study 03, Figure 3. Dense covariance against sparse precision. Computed on a 10 by 10 lattice with n = 100. The covariance has 10,000 entries. The precision has 1,104 nonzeros, at most 13 per row, and that count per row stays fixed as the mesh grows. The parameter kappa sets the range, about sqrt(8 nu)/kappa with nu = alpha - d/2, and tau sets the variance. This repository reproduces the 1,104 count.
+
+### Joint inference
+
+Exact inference in a switching model is out of reach: the posterior over the field is a mixture of K^T Gaussians, one for every regime path. The model is split instead. Given the field, the regimes are an ordinary HMM, and forward filtering with backward sampling costs O(T K^2). Given the regimes, the field is Gaussian with precision Q + H^T D_S H, which is still sparse, so one sparse Cholesky factorisation gives its mean and a sample.
+
+![Case study 03, Figure 4. The inference loop](docs/figures/hmm-inference-loop.png)
+
+Case study 03, Figure 4. The inference loop. The two steps alternate, and the hyperparameters theta = (A, mu_k, Sigma_k, kappa, tau) are updated from the joint likelihood by EM or a Laplace step. The same Cholesky factor L that solves for the field gives log|Q| = 2 sum log L_ii, so the likelihood costs no extra factorisation.
+
+This repository implements the field side of the loop (estimation of kappa and tau with log|Q| read from the factor) and the forward filter. Backward sampling and the EM or Laplace update of A, mu_k and Sigma_k are not implemented; the regime parameters are fixed and illustrative.
+
+### What the model provides
+
+Few, meaningful regimes that map directly onto interface states and escalation logic. A continuous layer that explains slow drift instead of mislabelling it as a regime change. A cost per step that grows with the number of nonzeros in Q, not with the square of the field size.
+
+## Simulation Loop with CARLA
+
+This section follows the journal entry [Hidden States: Modelling Driver Behaviour with CARLA, CUDA and a Microcontroller in the Loop](https://whatheheckisthis.github.io/blog/hidden-states-behavioural-time-series/), which describes the closed loop the study was designed around. The CARLA integration is described here for completeness and is not implemented in this repository.
+
+Studying regime changes conventionally requires an instrumented vehicle or driving simulator rig, physiological sensors, roadside cameras and an edge computer. The study asked whether the same question could be studied credibly with simulation and a single low-cost microcontroller.
+
+```
+ +-------------------+     frames      +----------------------------+
+ |  CARLA simulator  | --------------> |  OpenCV preprocessing      |
+ |  scenarios, ego   |                 |  resize, normalise, ROI    |
+ |  vehicle, sensors |                 +-------------+--------------+
+ +---------^---------+                               |
+           |                                         v
+           |                           +----------------------------+
+           |                           |  CUDA GPU (near time)      |
+           |                           |  R-CNN object detection    |
+           |                           |  feature extraction        |
+           |                           +-------------+--------------+
+           |                                         | compact feature
+           |                                         | vector (UART)
+           |                                         v
+           |    regime estimate        +----------------------------+
+           +-------------------------- |  MCU (hard real time)      |
+              (closes the loop)        |  int8 HMM forward filter   |
+                                       +----------------------------+
+```
+
+CARLA renders the scene and the camera streams. OpenCV prepares each frame; the lane detection in this repository is the OpenCV component that yields the lateral offset and SDLP observations. The GPU runs region-based convolutional neural network (R-CNN) detection and reduces each frame to a small feature vector. The MCU receives that vector and updates its belief over the four regimes. The estimate is returned to the simulation, so the scenario can respond to it.
+
+### Why the GPU handles perception
+
+R-CNN detection is expensive, irregular in cost and tolerant of small delays, so it belongs off the real-time path. CUDA allows the GPU to process detection in near time, in batches, while the regime filter continues to run at a fixed rate on the latest available features. The heavy path determines what the model sees; it does not determine when the model decides.
+
+### Why a microcontroller rather than a Raspberry Pi
+
+| Consideration | Raspberry Pi (Linux) | Microcontroller (bare metal) |
+|---|---|---|
+| Timing | Scheduler jitter from the OS | Deterministic, cycle-bounded loop |
+| Workload fit | Capacity largely unused | Matches a 4 by 4 recursion |
+| Representativeness | Unlike an embedded target | The class of device that ships |
+| Power and cost | Higher | Lower |
+
+A general-purpose computer adds capacity the task does not use and timing behaviour the task cannot tolerate. The firmware in `firmware/` is written for that bare-metal class of device.
+
+### Why no edge computing was required
+
+An edge deployment answers a deployment question: where processing runs once sensors exist in the world. The study asked a modelling question: whether the two-layer model detects regime changes correctly and within a time budget. CARLA supplied the sensors, the GPU workstation supplied perception, and the MCU supplied the time-critical decision.
+
+```
+ Conventional study                         This approach
+ ------------------                         -------------
+ instrumented vehicle or rig      --->      CARLA scenarios
+ physiological and road sensors   --->      simulated camera and vehicle signals
+ edge computer for perception     --->      CUDA GPU workstation
+ embedded decision unit           --->      MCU in the simulation loop
+```
+
+The study assumes that perception does not need to complete within one control cycle, provided the regime filter receives a timely summary, and that a simulated sensor stream is a sufficient proxy for early-stage model design but not a substitute for validation on recorded data.
 
 ## Method
 
@@ -142,6 +254,7 @@ The following figures are produced by the tests on simulated data.
 
 | Quantity                                                   | Result                                     |
 |------------------------------------------------------------|--------------------------------------------|
+| 10 by 10 lattice, n = 100, nonzeros of Q (case study 03)      | 1,104                                      |
 | 20 by 20 lattice, n = 400, nonzeros of Q                    | 4,804                                      |
 | Cholesky factor nonzeros after reverse Cuthill-McKee        | 11,378                                     |
 | Cholesky factor nonzeros, scrambled order (seeds 0, 1, 2)  | 45,258; 44,510; 43,640                     |
@@ -206,7 +319,9 @@ Commits SHALL be signed with the maintainer key in [KEYS.asc](KEYS.asc). Verific
 - Original application and project report, *Computer Vision on Nomadic Devices for Human Factors Engineering*, by Wahib-ul-Haq (TUM): [project report](https://www.academia.edu/11329425/Computer_vision_on_nomadic_devices_for_human_factors_engineering).
 - Core lane detection based on [lane-detection](https://github.com/jdorweiler/lane-detection) by J. Dorweiler, described in [Revisiting lane detection using OpenCV](http://www.transistor.io/revisiting-lane-detection-using-opencv.html), ported to the Android NDK and optimised for smartphones in the original application.
 - Related case study: [Lifting SPDE-GMRF Fields: GPU Estimation and On-Device Forward Filtering](https://whatheheckisthis.github.io/case-studies/spde-gmrf-gpu-edge/).
-- Previous case study: [Hidden Markov models with Gaussian fields](https://whatheheckisthis.github.io/case-studies/hmm-gaussian-fields/).
+- Journal entry: [Hidden States: Modelling Driver Behaviour with CARLA, CUDA and a Microcontroller in the Loop](https://whatheheckisthis.github.io/blog/hidden-states-behavioural-time-series/).
+- [CARLA simulator](https://carla.org/).
+- Previous case study: [Hidden Markov models with Gaussian fields](https://whatheheckisthis.github.io/case-studies/hmm-gaussian-fields/), [Hidden Markov model overview](https://en.wikipedia.org/wiki/Hidden_Markov_model).
 - Lindgren, Rue and Lindstrom, [An explicit link between Gaussian fields and Gaussian Markov random fields: the SPDE approach](https://doi.org/10.1111/j.1467-9868.2011.00777.x).
 - NVIDIA [cuSPARSE](https://docs.nvidia.com/cuda/cusparse/), [cuDSS](https://docs.nvidia.com/cuda/cudss/) and [cuSOLVER](https://docs.nvidia.com/cuda/cusolver/) documentation; Arm [CMSIS-NN](https://github.com/ARM-software/CMSIS-NN).
 
