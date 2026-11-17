@@ -6,7 +6,6 @@ NVIDIA stack (host estimation):
 [![cuSPARSE](https://img.shields.io/badge/cuSPARSE-CSR%20%7C%20SpMM-76B900?logo=nvidia&logoColor=white)](https://docs.nvidia.com/cuda/cusparse/)
 [![cuDSS](https://img.shields.io/badge/cuDSS-SPD%20Cholesky%20%7C%20refactorisation-76B900?logo=nvidia&logoColor=white)](https://docs.nvidia.com/cuda/cudss/)
 [![cuSOLVER](https://img.shields.io/badge/cuSOLVER-not%20used-lightgrey?logo=nvidia&logoColor=white)](https://docs.nvidia.com/cuda/cusolver/)
-![GPU build](https://img.shields.io/badge/GPU%20build-not%20compiled-lightgrey)
 
 Arm Cortex-M build (device filtering):
 
