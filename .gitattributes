@@ -1,4 +1,5 @@
 # GitHub Linguist: report the repository as C.
 # Python reference and tooling is excluded from language statistics.
-*.py linguist-detectable=false
+*.py linguist-detectable=false linguist-vendored
+python/** linguist-vendored
 *.h linguist-language=C
