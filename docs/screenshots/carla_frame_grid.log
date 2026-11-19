@@ -1,0 +1,8 @@
+  Duration: 00:00:15.00, start: 0.000000, bitrate: 4091 kb/s
+  Stream #0:0[0x1](und): Video: h264 (Constrained Baseline) (avc1 / 0x31637661), yuv420p(progressive), 640x384, 4090 kb/s, 20 fps, 20 tbr, 10240 tbn (default)
+  Duration: 00:00:15.00, start: 0.000000, bitrate: 4015 kb/s
+  Stream #0:0[0x1](und): Video: h264 (Constrained Baseline) (avc1 / 0x31637661), yuv420p(progressive), 640x384, 4013 kb/s, 20 fps, 20 tbr, 10240 tbn (default)
+  Duration: 00:00:15.00, start: 0.000000, bitrate: 3124 kb/s
+  Stream #0:0[0x1](und): Video: h264 (Constrained Baseline) (avc1 / 0x31637661), yuv420p(progressive), 640x384, 3123 kb/s, 20 fps, 20 tbr, 10240 tbn (default)
+  Duration: 00:00:15.00, start: 0.000000, bitrate: 1243 kb/s
+  Stream #0:0[0x1](und): Video: h264 (Constrained Baseline) (avc1 / 0x31637661), yuv420p(progressive), 640x384, 1242 kb/s, 20 fps, 20 tbr, 10240 tbn (default)

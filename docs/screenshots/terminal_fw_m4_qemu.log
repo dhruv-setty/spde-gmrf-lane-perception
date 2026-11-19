@@ -1,0 +1,28 @@
+arm-none-eabi-gcc (15:13.2.rel1-2) 13.2.1 20231009
+qemu-arm version 8.2.2 (Debian 1:8.2.2+ds-0ubuntu1.18)
+# 1. portable C99 kernel (hmm_fc_s8_ref.c), Cortex-M4F, newlib rdimon semihosting
+$ arm-none-eabi-gcc -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -Os -std=c99 -Ifirmware/include -Ifirmware/tests --specs=rdimon.specs -o build/capture/qemu/test_ref.elf firmware/src/hmm_filter.c firmware/src/hmm_fc_s8_ref.c firmware/src/hmm_exp_lut.c firmware/tests/test_hmm_filter.c
+[exit 0]
+$ qemu-arm -cpu cortex-m4 -B 0x40000000 build/capture/qemu/test_ref.elf
+vectors: T=600 bit_exact_vs_python=yes int8_vs_float_argmax_agreement=0.9933 int8_accuracy=0.8933 float_accuracy=0.8967 floor_hits=0 (simulated data)
+firmware tests: all passed
+[exit 0]
+# runtime 64-bit division linked into test_ref.elf (nm -S: address, size, type, name)
+00009524 T __aeabi_ldivmod
+000095c4 000002bc T __udivmoddi4
+# 2. CMSIS-NN v8.0.0 arm_fully_connected_s8 (HMM_USE_CMSIS_NN), CMSIS_6 v6.4.0 core headers
+$ arm-none-eabi-gcc -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -Os -std=c99 -Ifirmware/include -Ifirmware/tests --specs=rdimon.specs -DHMM_USE_CMSIS_NN -Ibuild/capture/CMSIS-NN/Include -Ibuild/capture/CMSIS_6/CMSIS/Core/Include -o build/capture/qemu/test_cmsis.elf firmware/src/hmm_filter.c firmware/src/hmm_fc_s8_ref.c firmware/src/hmm_exp_lut.c firmware/tests/test_hmm_filter.c firmware/src/hmm_fc_s8_cmsis.c build/capture/CMSIS-NN/Source/FullyConnectedFunctions/arm_fully_connected_s8.c build/capture/CMSIS-NN/Source/FullyConnectedFunctions/arm_fully_connected_get_buffer_sizes_s8.c build/capture/CMSIS-NN/Source/NNSupportFunctions/arm_nn_vec_mat_mult_t_s8.c
+[exit 0]
+$ qemu-arm -cpu cortex-m4 -B 0x40000000 build/capture/qemu/test_cmsis.elf
+vectors: T=600 bit_exact_vs_python=yes int8_vs_float_argmax_agreement=0.9933 int8_accuracy=0.8933 float_accuracy=0.8967 floor_hits=0 (simulated data)
+firmware tests: all passed
+[exit 0]
+# CMSIS-NN backend objects, Cortex-M4F -Os
+$ arm-none-eabi-size -t hmm_fc_s8_cmsis.o arm_fully_connected_s8.o arm_fully_connected_get_buffer_sizes_s8.o arm_nn_vec_mat_mult_t_s8.o
+   text	   data	    bss	    dec	    hex	filename
+    176	      0	    256	    432	    1b0	hmm_fc_s8_cmsis.o
+    110	      0	      0	    110	     6e	arm_fully_connected_s8.o
+     14	      0	      0	     14	      e	arm_fully_connected_get_buffer_sizes_s8.o
+   1290	      0	      0	   1290	    50a	arm_nn_vec_mat_mult_t_s8.o
+   1590	      0	    256	   1846	    736	(TOTALS)
+[exit 0]

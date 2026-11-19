@@ -1,0 +1,11 @@
+gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+$ make -C firmware clean test CC=gcc WERROR=1
+make: Entering directory '/home/runner/work/SPDE-GMRF/SPDE-GMRF/firmware'
+rm -rf build
+mkdir -p build
+gcc -O2 -std=c99 -Wall -Wextra -pedantic -Iinclude -Werror -Itests -o build/test_hmm_filter src/hmm_filter.c src/hmm_fc_s8_ref.c src/hmm_exp_lut.c tests/test_hmm_filter.c
+./build/test_hmm_filter
+vectors: T=600 bit_exact_vs_python=yes int8_vs_float_argmax_agreement=0.9933 int8_accuracy=0.8933 float_accuracy=0.8967 floor_hits=0 (simulated data)
+firmware tests: all passed
+make: Leaving directory '/home/runner/work/SPDE-GMRF/SPDE-GMRF/firmware'
+[exit 0]

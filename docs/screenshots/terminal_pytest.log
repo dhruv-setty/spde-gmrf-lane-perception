@@ -1,0 +1,43 @@
+Python 3.11.18
+CC=gcc
+$ python -m pytest -o addopts= -v -s -p no:cacheprovider
+============================= test session starts ==============================
+platform linux -- Python 3.11.18, pytest-9.2.0, pluggy-1.7.0 -- /opt/hostedtoolcache/Python/3.11.18/x64/bin/python
+rootdir: /home/runner/work/SPDE-GMRF/SPDE-GMRF
+configfile: pytest.ini
+testpaths: python/tests
+collecting ... collected 20 items
+
+python/tests/test_cholesky_estimate.py::test_sparse_cholesky_matches_dense[natural] PASSED
+python/tests/test_cholesky_estimate.py::test_sparse_cholesky_matches_dense[rcm] PASSED
+python/tests/test_cholesky_estimate.py::test_symbolic_analysis_is_reused PASSED
+python/tests/test_cholesky_estimate.py::test_sparse_likelihood_matches_dense PASSED
+python/tests/test_cholesky_estimate.py::test_estimation_recovers_kappa_tau 
+kappa_hat=4.5744 true=4.7140 rel_err=0.030; tau_hat=0.001452 true=0.001496 rel_err=0.029; factorisations=177 symbolic_analyses=2
+PASSED
+python/tests/test_fill_in.py::test_lattice_precision_counts PASSED
+python/tests/test_fill_in.py::test_fill_in_scrambled_vs_rcm 
+seed scrambled_nnz=45258 rcm_nnz=11378 reduction=0.749
+
+seed scrambled_nnz=44510 rcm_nnz=11378 reduction=0.744
+
+seed scrambled_nnz=43640 rcm_nnz=11378 reduction=0.739
+PASSED
+python/tests/test_fill_in.py::test_symbolic_count_matches_numeric_factor PASSED
+python/tests/test_forward_filter.py::test_transition_matrix_keeps_direct_calm_to_panic PASSED
+python/tests/test_forward_filter.py::test_exp_table_matches_committed_c_source PASSED
+python/tests/test_forward_filter.py::test_int8_agrees_with_float 
+int8 vs float over T=5000: argmax agreement=0.9966, mean |belief error|=0.0020, max=0.1265; accuracy vs simulated truth float=0.9234 int8=0.9240; floor hits=0
+PASSED
+python/tests/test_forward_filter.py::test_belief_never_underflows PASSED
+python/tests/test_forward_filter.py::test_c_kernel_is_bit_exact_with_python_mirror PASSED
+python/tests/test_gpu_case.py::test_gpu_case_round_trip PASSED
+python/tests/test_mac_table.py::test_counts_link_to_matrices PASSED
+python/tests/test_mac_table.py::test_device_count_is_independent_of_mesh PASSED
+python/tests/test_mesh_fem_projector.py::test_fem_unit_lattice_is_five_point_laplacian PASSED
+python/tests/test_mesh_fem_projector.py::test_spde_precision_matches_formula_and_is_spd PASSED
+python/tests/test_mesh_fem_projector.py::test_projector_three_weights_per_row_summing_to_one PASSED
+python/tests/test_mesh_fem_projector.py::test_posterior_precision_stays_sparse_and_local PASSED
+
+============================== 20 passed in 6.50s ==============================
+[exit 0]

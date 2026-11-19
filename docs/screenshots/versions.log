@@ -1,0 +1,10 @@
+Python 3.11.18
+numpy 2.4.6 scipy 1.17.1 matplotlib 3.11.2
+gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+arm-none-eabi-gcc (15:13.2.rel1-2) 13.2.1 20231009
+qemu-arm version 8.2.2 (Debian 1:8.2.2+ds-0ubuntu1.18)
+Version: ImageMagick 6.9.12-98 Q16 x86_64 18038 https://legacy.imagemagick.org
+XTerm(390)
+Cuda compilation tools, release 12.9, V12.9.86
+Build cuda_12.9.r12.9/compiler.36037853_0
+ffmpeg version n9.0.2-17-g2a571b6068-20260930 Copyright (c) 2000-2026 the FFmpeg developers

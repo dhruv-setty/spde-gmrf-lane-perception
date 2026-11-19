@@ -1,0 +1,64 @@
+arm-none-eabi-gcc (15:13.2.rel1-2) 13.2.1 20231009
+flags: -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -Os -std=c99 -fstack-usage -fcallgraph-info=su
+$ arm-none-eabi-size -t hmm_filter.o hmm_fc_s8_ref.o hmm_exp_lut.o model.o
+   text	   data	    bss	    dec	    hex	filename
+    816	      0	      0	    816	    330	hmm_filter.o
+    198	      0	      0	    198	     c6	hmm_fc_s8_ref.o
+    512	      0	      0	    512	    200	hmm_exp_lut.o
+    276	      0	     16	    292	    124	model.o
+   1802	      0	     16	   1818	    71a	(TOTALS)
+[exit 0]
+$ cat *.su   (gcc -fstack-usage: function, bytes, qualifier)
+hmm_fc_s8_ref.c:24:9:hmm_requantize	8	static
+hmm_fc_s8_ref.c:32:5:hmm_fc_s8_ref	40	static
+hmm_fc_s8_ref.c:56:5:hmm_fc_s8	0	static
+hmm_filter.c:12:9:hmm_exp_neg_q15	8	static
+hmm_filter.c:29:5:hmm_init	0	static
+hmm_filter.c:44:5:hmm_swap_model	0	static
+hmm_filter.c:53:5:hmm_mode	0	static
+hmm_filter.c:64:5:hmm_step	168	static
+$ grep edge *.ci   (gcc -fcallgraph-info: calls made by the filter)
+hmm_fc_s8_ref -> hmm_requantize
+hmm_fc_s8 -> hmm_fc_s8_ref
+hmm_step -> hmm_fc_s8
+hmm_step -> hmm_exp_neg_q15
+hmm_step -> __aeabi_ldivmod
+hmm_step -> hmm_mode
+# filter, model and state linked alone (entry hmm_step, --gc-sections, libgcc for 64-bit division)
+$ arm-none-eabi-gcc -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -Os -nostartfiles -nostdlib -Wl,--gc-sections -Wl,-e,hmm_step -Wl,--undefined=hmm_init -Wl,--undefined=hmm_mode -Wl,--undefined=hmm_model_ptr -Wl,--undefined=hmm_state -o filter.elf hmm_filter.o hmm_fc_s8_ref.o hmm_exp_lut.o model.o -lgcc
+[exit 0]
+$ arm-none-eabi-size -A filter.elf
+filter.elf  :
+section            size    addr
+.text              1880   32768
+.rodata             788   34648
+.ARM.exidx            8   35436
+.persistent           0   39540
+.bss                 16   39540
+.noinit               0   39556
+[exit 0]
+00008754 00000002 W __aeabi_idiv0
+00008754 00000002 W __aeabi_ldiv0
+00008498 000002bc T __udivmoddi4
+CC_M4=arm-none-eabi-gcc -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16
+$ python tools/footprint.py
+| Unit | text | rodata | data | bss |
+|---|---|---|---|---|
+| hmm_filter.c | 816 | 0 | 0 | 0 |
+| hmm_fc_s8_ref.c | 198 | 0 | 0 | 0 |
+| hmm_exp_lut.c | 0 | 512 | 0 | 0 |
+| model.c | 0 | 276 | 0 | 16 |
+| total | 1014 | 788 | 0 | 16 |
+
+| Function | Frame bytes |
+|---|---|
+| hmm_exp2_lut_q15 | 0 |
+| hmm_exp_neg_q15 | 8 |
+| hmm_fc_s8 | 0 |
+| hmm_fc_s8_ref | 40 |
+| hmm_init | 0 |
+| hmm_mode | 0 |
+| hmm_requantize | 8 |
+| hmm_step | 168 |
+| hmm_swap_model | 0 |
+[exit 0]

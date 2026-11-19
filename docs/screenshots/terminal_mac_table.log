@@ -1,0 +1,20 @@
+$ python python/tools/mac_table.py
+| Stage | Matrix | n | nnz | MACs | Per |
+|---|---|---|---|---|---|
+| Assemble Q(theta) values | Q (16x16 mesh) | 256 | 3,012 | 9,036 | theta (multiplies) |
+| Sparse product Q x | Q (16x16 mesh) | 256 | 3,012 | 3,012 | product |
+| Cholesky of Q | L of Q, RCM | 256 | 5,896 | 72,538 | theta |
+| Cholesky of Q + P^T P / sigma^2 | L of posterior precision, RCM | 256 | 5,896 | 72,538 | theta |
+| Posterior mean solve | L of posterior precision | 256 | 5,896 | 11,280 | right-hand side |
+| Sensor product P^T y | P (200 sensors) | 200 | 600 | 600 | right-hand side |
+| Lift x_hat to device sites | P_dev (64 sites) | 64 | 192 | 192 | re-estimation |
+| Cholesky, 20x20 lattice, RCM | L of Q (Figure 3) | 400 | 11,378 | 174,362 | theta |
+| Cholesky, 20x20 lattice, scrambled (seed 0) | L of Q (Figure 3) | 400 | 45,258 | 3,877,939 | theta |
+
+| Stage | Matrix | Entries | MACs |
+|---|---|---|---|
+| Prediction A^T alpha_(t-1) | A^T (4x4, int8) | 16 | 16 |
+| Emission b_k(y_t) | mu, 1/sigma (4x2) and P x_hat | 8 | 16 |
+| Update and normalise | belief alpha_t (4, int8) | 4 | 8 |
+| Total per sample |  |  | 40 |
+[exit 0]

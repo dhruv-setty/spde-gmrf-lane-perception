@@ -1,0 +1,21 @@
+Cuda compilation tools, release 12.9, V12.9.86
+Build cuda_12.9.r12.9/compiler.36037853_0
+# cuDSS 0.7.1.6 (PyPI wheel nvidia-cudss-cu12==0.7.1.6)
+$ nvcc -std=c++17 -O2 -arch=sm_80 -Ibuild/capture/cudss-0.7.1.6/nvidia/cu12/include -c gpu/src/spde_gpu.cu -o build/capture/spde_gpu_0.7.1.6.o
+[exit 0]
+$ ls -l spde_gpu_0.7.1.6.o
+-rw-r--r-- 1 runner runner 58920 Nov 19 04:36 spde_gpu_0.7.1.6.o
+[exit 0]
+# cuDSS 1.0.0.35 (PyPI wheel nvidia-cudss-cu12==1.0.0.35)
+$ nvcc -std=c++17 -O2 -arch=sm_80 -Ibuild/capture/cudss-1.0.0.35/nvidia/cu12/include -c gpu/src/spde_gpu.cu -o build/capture/spde_gpu_1.0.0.35.o
+gpu/src/spde_gpu.cu(179): error: argument of type "cudssMatrixType_t" is incompatible with parameter of type "cudaDataType_t"
+gpu/src/spde_gpu.cu(179): error: argument of type "cudssMatrixViewType_t" is incompatible with parameter of type "cudssMatrixType_t"
+gpu/src/spde_gpu.cu(179): error: argument of type "cudssIndexBase_t" is incompatible with parameter of type "cudssMatrixViewType_t"
+gpu/src/spde_gpu.cu(179): error: too few arguments in function call
+gpu/src/spde_gpu.cu(181): error: argument of type "cudssMatrixType_t" is incompatible with parameter of type "cudaDataType_t"
+gpu/src/spde_gpu.cu(181): error: argument of type "cudssMatrixViewType_t" is incompatible with parameter of type "cudssMatrixType_t"
+gpu/src/spde_gpu.cu(181): error: argument of type "cudssIndexBase_t" is incompatible with parameter of type "cudssMatrixViewType_t"
+gpu/src/spde_gpu.cu(181): error: too few arguments in function call
+8 errors detected in the compilation of "gpu/src/spde_gpu.cu".
+[exit 2]
+Compile only (nvcc -c): not linked and not run; this runner has no GPU.
