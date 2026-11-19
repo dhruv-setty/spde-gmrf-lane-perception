@@ -3,3 +3,4 @@
 *.py linguist-detectable=false linguist-vendored
 python/** linguist-vendored
 *.h linguist-language=C
+*.mp4 binary linguist-vendored

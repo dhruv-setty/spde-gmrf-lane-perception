@@ -21,6 +21,7 @@ The key words MUST, MUST NOT, SHALL, SHOULD and MAY in this document are to be i
 - [Assumptions](#assumptions)
 - [The Two-Layer Model](#the-two-layer-model)
 - [Simulation Loop with CARLA](#simulation-loop-with-carla)
+- [CARLA Driving Videos](#carla-driving-videos)
 - [Method](#method)
 - [GPU and Device Libraries](#gpu-and-device-libraries)
 - [Operation Counts and Footprint](#operation-counts-and-footprint)
@@ -202,6 +203,10 @@ An edge deployment answers a deployment question: where processing runs once sen
 ```
 
 The study assumes that perception does not need to complete within one control cycle, provided the regime filter receives a timely summary, and that a simulated sensor stream is a sufficient proxy for early-stage model design but not a substitute for validation on recorded data.
+
+## CARLA Driving Videos
+
+The application bundles four 15-second dashcam clips rendered in CARLA under [`assets/videos/`](assets/videos/), as sample input for the lane detector: two clear-weather urban drives and one rain-at-sunset urban drive in Town10HD, and one wet highway drive at sunset in Town04. They are H.264 Baseline at 640 x 384 and 20 frames per second, so they play on older Android devices. The clips come from the CC BY 4.0 mini-carla-192x320 dataset rendered with CARLA 0.9.16; per-clip episode, frame range, camera intrinsics and licence are in [`assets/videos/README.md`](assets/videos/README.md). No lane detection accuracy has been measured on them.
 
 ## Method
 
@@ -408,6 +413,7 @@ python/tools/      fill-in figure script and operation-count table
 gpu/               CUDA estimation with cuSPARSE and cuDSS, CMake, CPU comparison script
 firmware/          C99 forward filter, portable int8 kernel, CMSIS-NN backend, host tests,
                    Cortex-M4F footprint script
+assets/videos/     CARLA dashcam clips bundled with the application, with provenance
 docs/              regenerated fill-in figure; docs/figures/ holds the case study figures
 .github/workflows/ continuous integration
 ```
@@ -424,11 +430,11 @@ Commits SHALL be signed with the maintainer key in [KEYS.asc](KEYS.asc). Verific
 - Core lane detection based on [lane-detection](https://github.com/jdorweiler/lane-detection) by J. Dorweiler, described in [Revisiting lane detection using OpenCV](http://www.transistor.io/revisiting-lane-detection-using-opencv.html), ported to the Android NDK and optimised for smartphones in the original application.
 - Related case study: [Lifting SPDE-GMRF Fields: GPU Estimation and On-Device Forward Filtering](https://whatheheckisthis.github.io/case-studies/spde-gmrf-gpu-edge/).
 - Journal entry: [Hidden States: Modelling Driver Behaviour with CARLA, CUDA and a Microcontroller in the Loop](https://whatheheckisthis.github.io/blog/hidden-states-behavioural-time-series/).
-- [CARLA simulator](https://carla.org/).
+- [CARLA simulator](https://carla.org/). Bundled driving videos: [mini-carla-192x320](https://huggingface.co/datasets/kamwoh/mini-carla-192x320) by kamwoh, CC BY 4.0.
 - Previous case study: [Hidden Markov models with Gaussian fields](https://whatheheckisthis.github.io/case-studies/hmm-gaussian-fields/), [Hidden Markov model overview](https://en.wikipedia.org/wiki/Hidden_Markov_model).
 - Lindgren, Rue and Lindstrom, [An explicit link between Gaussian fields and Gaussian Markov random fields: the SPDE approach](https://doi.org/10.1111/j.1467-9868.2011.00777.x).
 - NVIDIA [cuSPARSE](https://docs.nvidia.com/cuda/cusparse/), [cuDSS](https://docs.nvidia.com/cuda/cudss/) and [cuSOLVER](https://docs.nvidia.com/cuda/cusolver/) documentation; Arm [CMSIS-NN](https://github.com/ARM-software/CMSIS-NN).
 
 ## Licence
 
-MIT. The original copyright notice (Copyright (c) 2014 wahib-ul-haq) is retained in [LICENSE](LICENSE).
+MIT. The original copyright notice (Copyright (c) 2014 wahib-ul-haq) is retained in [LICENSE](LICENSE). The CARLA videos in `assets/videos/` are CC BY 4.0.
