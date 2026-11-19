@@ -4,3 +4,5 @@
 python/** linguist-vendored
 *.h linguist-language=C
 *.mp4 binary linguist-vendored
+# Capture tooling for the README figures (.github/workflows/captures.yml).
+docs/capture/** linguist-vendored

@@ -1,0 +1,27 @@
+name: captures
+on:
+  push:
+    branches: [main]
+    paths: ["docs/capture/**", "python/**", "firmware/**", "gpu/**", "assets/videos/**", ".github/workflows/captures.yml"]
+  workflow_dispatch:
+jobs:
+  capture:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install -r python/requirements.txt matplotlib pyelftools
+      - run: sudo apt-get update && sudo apt-get install -y xvfb xterm xdotool imagemagick ffmpeg fonts-dejavu gcc-arm-none-eabi libnewlib-arm-none-eabi qemu-user
+      - name: CUDA compiler, cuSPARSE and cuDSS headers (compile and link only; the runner has no GPU)
+        continue-on-error: true
+        run: |
+          wget -q https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
+          sudo dpkg -i cuda-keyring_1.1-1_all.deb && sudo apt-get update
+          sudo apt-get install -y cuda-nvcc-12-9 cuda-cudart-dev-12-9 libcusparse-dev-12-9
+          echo /usr/local/cuda-12.9/bin >> "$GITHUB_PATH"
+          pip install nvidia-cudss-cu12
+      - run: ./docs/capture/capture.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: spde-gmrf-captures, path: docs/screenshots }
