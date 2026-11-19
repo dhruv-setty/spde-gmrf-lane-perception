@@ -13,7 +13,7 @@ jobs:
         with: { python-version: "3.11" }
       - run: pip install -r python/requirements.txt matplotlib pyelftools imageio-ffmpeg
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends -o Acquire::Retries=3 xvfb xauth xterm xdotool imagemagick fonts-dejavu-core gcc-arm-none-eabi libnewlib-arm-none-eabi qemu-user
-      - name: CUDA compiler and cuSPARSE (compile and link only; the runner has no GPU)
+      - name: CUDA compiler and cuSPARSE headers (compile only; the runner has no GPU)
         continue-on-error: true
         run: |
           wget -q https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb

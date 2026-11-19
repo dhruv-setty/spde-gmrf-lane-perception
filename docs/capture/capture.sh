@@ -85,7 +85,7 @@ step() {
     if ! command -v nvcc >/dev/null; then echo "nvcc not installed: CUDA compile not captured"; return 0; fi
     nvcc --version | tail -2
     # The source uses the cuDSS 0.x signature of cudssMatrixCreateCsr; it is compiled against
-    # the last 0.7 wheel and against the current wheel. Compile and link only: no GPU here.
+    # the last 0.7 wheel and against the current wheel. Compile only: no GPU here.
     local v d
     for v in 0.7.1.6 1.0.0.35; do
       d="$OUT/cudss-$v"
@@ -93,13 +93,9 @@ step() {
       echo "# cuDSS $v (PyPI wheel nvidia-cudss-cu12==$v)"
       run nvcc -std=c++17 -O2 -arch=sm_80 -I"$d/nvidia/cu12/include" -c gpu/src/spde_gpu.cu -o "$OUT/spde_gpu_$v.o" 2>&1 \
         | grep -E '^\$|error:|errors detected|^\[exit' | cut -c1-148
-      if [ -f "$OUT/spde_gpu_$v.o" ]; then
-        run nvcc -arch=sm_80 -o "$OUT/spde_gpu_$v" "$OUT/spde_gpu_$v.o" -L"$d/nvidia/cu12/lib" -l:libcudss.so.1 -lcusparse \
-          -Xlinker --allow-shlib-undefined
-        (cd "$OUT" && run ls -l "spde_gpu_$v.o" "spde_gpu_$v")
-      fi
+      [ -f "$OUT/spde_gpu_$v.o" ] && (cd "$OUT" && run ls -l "spde_gpu_$v.o")
     done
-    echo "Not run: this runner has no GPU."
+    echo "Compile only (nvcc -c): not linked and not run; this runner has no GPU."
     ;;
   *) echo "unknown step $1"; return 2 ;;
   esac
