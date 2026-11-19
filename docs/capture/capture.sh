@@ -23,7 +23,7 @@ step() {
   case "$1" in
   pytest)
     python --version; export CC=gcc; echo "CC=gcc"
-    run python -m pytest -v -s -p no:cacheprovider
+    run python -m pytest -o addopts= -v -s -p no:cacheprovider
     ;;
   fw_host)
     gcc --version | head -1
@@ -83,15 +83,23 @@ step() {
     ;;
   nvcc)
     if ! command -v nvcc >/dev/null; then echo "nvcc not installed: CUDA compile not captured"; return 0; fi
-    local inc lib
-    inc=$(python -c "import nvidia.cu12, os; print(os.path.join(list(nvidia.cu12.__path__)[0], 'include'))" 2>/dev/null)
-    lib=$(python -c "import nvidia.cu12, os; print(os.path.join(list(nvidia.cu12.__path__)[0], 'lib'))" 2>/dev/null)
-    run nvcc --version
-    echo "cuDSS: $(pip show nvidia-cudss-cu12 2>/dev/null | grep -E '^(Name|Version)' | tr '\n' ' ')"
-    run nvcc -std=c++17 -O2 -I"$inc" -c gpu/src/spde_gpu.cu -o "$OUT/spde_gpu.o"
-    run nvcc -o "$OUT/spde_gpu" "$OUT/spde_gpu.o" -L"$lib" -l:libcudss.so.1 -lcusparse
-    run ls -l "$OUT/spde_gpu.o" "$OUT/spde_gpu"
-    echo "Compiled and linked only. Not run: this runner has no GPU."
+    nvcc --version | tail -2
+    # The source uses the cuDSS 0.x signature of cudssMatrixCreateCsr; it is compiled against
+    # the last 0.7 wheel and against the current wheel. Compile and link only: no GPU here.
+    local v d
+    for v in 0.7.1.6 1.0.0.35; do
+      d="$OUT/cudss-$v"
+      pip install -q --no-deps --target "$d" "nvidia-cudss-cu12==$v" >/dev/null 2>&1 || echo "pip install nvidia-cudss-cu12==$v failed"
+      echo "# cuDSS $v (PyPI wheel nvidia-cudss-cu12==$v)"
+      run nvcc -std=c++17 -O2 -arch=sm_80 -I"$d/nvidia/cu12/include" -c gpu/src/spde_gpu.cu -o "$OUT/spde_gpu_$v.o" 2>&1 \
+        | grep -E '^\$|error:|errors detected|^\[exit' | cut -c1-148
+      if [ -f "$OUT/spde_gpu_$v.o" ]; then
+        run nvcc -arch=sm_80 -o "$OUT/spde_gpu_$v" "$OUT/spde_gpu_$v.o" -L"$d/nvidia/cu12/lib" -l:libcudss.so.1 -lcusparse \
+          -Xlinker --allow-shlib-undefined
+        (cd "$OUT" && run ls -l "spde_gpu_$v.o" "spde_gpu_$v")
+      fi
+    done
+    echo "Not run: this runner has no GPU."
     ;;
   *) echo "unknown step $1"; return 2 ;;
   esac
@@ -150,10 +158,10 @@ term() { # name columns rows
   kill $pid 2>/dev/null || true; sleep 1
 }
 term pytest     150 58
-term fw_host    120 14
+term fw_host    150 14
 term fw_m4_size 120 72
 term fw_m4_qemu 150 40
 term mac_table  150 40
-term nvcc       150 30
+term nvcc       150 36
 
 ls -la "$shots"
