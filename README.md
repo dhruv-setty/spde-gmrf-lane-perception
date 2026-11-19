@@ -111,7 +111,7 @@ Every evaluation of the likelihood for a candidate theta = (kappa, tau) rebuilds
 
 ![Figure 3. Ordering decides the cost](docs/figures/spde-fill-in.png)
 
-Figure 3. Ordering decides the cost, as published in the case study. On a 20 by 20 lattice, n = 400, Q has 4,804 nonzeros. The study reports 37,615 factor nonzeros for a scrambled node order and 11,378 after reverse Cuthill-McKee, about 70% fewer. This repository reproduces 4,804 and 11,378 exactly; its scrambled counts differ and are given under [Evidence](#evidence). The figure regenerated from this repository is `docs/spde-fill-in.png`.
+Figure 3. Ordering decides the cost, as published in the case study. On a 20 by 20 lattice, n = 400, Q has 4,804 nonzeros. The study reports 37,615 factor nonzeros for a scrambled node order and 11,378 after reverse Cuthill-McKee, about 70% fewer. This repository reproduces 4,804 and 11,378 exactly. The scrambled count depends on the random relabelling; 37,615 lies within the range of 1,000 relabellings (Figure 10). The figure regenerated from this repository is `docs/spde-fill-in.png`.
 
 #### Host side: NVIDIA CUDA libraries
 
@@ -169,7 +169,7 @@ Cortex-M microcontrollers do not have the memory or floating-point throughput to
 |---|---|---|
 | Quantised execution | CMSIS-NN provides int8 and int16 kernels. The forward filter is expressed in kernel form: a state-transition operator as a fully connected layer and, for filters over the field itself, as 1D or 2D convolutions or graph message passing over local mesh neighbourhoods. | The 4 by 4 transition product A^T alpha_(t-1) runs as `arm_fully_connected_s8` when `HMM_USE_CMSIS_NN` is defined, with a portable C99 kernel of identical integer semantics otherwise. A field-level filter in convolution or message-passing form is not implemented. |
 | Locality | A GMRF node depends only on its immediate neighbours, so the sparse products in a forward filter reduce to small, local multiply-accumulate (MAC) operations, which CMSIS-NN executes with the SIMD instructions available on Cortex-M cores. | The four-regime recursion needs 16 MACs, four multiplies and a fixed-point normalisation per sample. Belief underflow is prevented by rescaling. |
-| Memory and latency | Small state and local operations keep RAM use and per-sample cost low. | Footprint measured: 1,998 bytes of flash, 16 bytes of state and at most 252 bytes of stack, excluding the runtime division routine (see [Operation Counts and Footprint](#device-static-footprint)). Latency is not measured. |
+| Memory and latency | Small state and local operations keep RAM use and per-sample cost low. | Footprint measured with arm-none-eabi-gcc 13.2.1: 1,802 bytes of flash, 16 bytes of state and at most 216 bytes of stack, excluding the runtime division routine (see [Operation Counts and Footprint](#device-static-footprint)). Latency is not measured. |
 
 #### Device: per sample
 
@@ -184,50 +184,32 @@ The device count is read from the loops of `hmm_step` and does not depend on the
 
 #### Device: static footprint
 
-Measured by `firmware/tools/footprint.py`: the portable filter and the generated model cross-compiled for Cortex-M4F at `-Os` with zig cc 0.17.1 (clang). Section sizes are read from the object files; stack frames are read from the generated assembly.
+Measured in the captures workflow (Figure 14): the portable filter and the generated model cross-compiled with arm-none-eabi-gcc 13.2.1 (Ubuntu package `15:13.2.rel1-2`) for Cortex-M4F at `-Os` (`-mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16`). Section sizes are read with `arm-none-eabi-size` and `firmware/tools/footprint.py`; stack frames are read with `-fstack-usage` and `-fcallgraph-info=su`.
 
 | Unit | text (bytes) | rodata (bytes) | bss (bytes) |
 |---|---|---|---|
-| hmm_filter.c | 880 | 0 | 0 |
-| hmm_fc_s8_ref.c | 330 | 0 | 0 |
+| hmm_filter.c | 816 | 0 | 0 |
+| hmm_fc_s8_ref.c | 198 | 0 | 0 |
 | hmm_exp_lut.c (exp2 table, 256 x uint16) | 0 | 512 | 0 |
 | Generated model (A^T, emission constants, 64 offsets) | 0 | 276 | 0 |
 | Filter state | 0 | 0 | 16 |
-| Total | 1,210 | 788 | 16 |
+| Total | 1,014 | 788 | 16 |
 
 | Function | Stack frame (bytes) |
 |---|---|
-| hmm_step | 176 |
-| hmm_fc_s8 | 28 |
-| hmm_fc_s8_ref | 48 |
-| hmm_mode | 8 |
-| hmm_requantize, hmm_exp_neg_q15 | 0 |
+| hmm_step | 168 |
+| hmm_fc_s8 | 0 (tail call) |
+| hmm_fc_s8_ref | 40 |
+| hmm_requantize | 8 |
+| hmm_exp_neg_q15 | 8 |
 
-Flash use is 1,998 bytes and RAM use is 16 bytes of state, with a stack depth of at most 252 bytes along hmm_step, hmm_fc_s8 and hmm_fc_s8_ref. These figures exclude the compiler runtime: the normalisation divides 64-bit integers, which calls `__aeabi_ldivmod` four times per sample. That routine's size and cycle cost depend on the toolchain and were not measured. The CMSIS-NN build was not measured.
+Flash use for the filter and model objects is 1,802 bytes and RAM use is 16 bytes of state, with a stack depth of at most 216 bytes along hmm_step, hmm_fc_s8, hmm_fc_s8_ref and hmm_requantize. The normalisation divides 64-bit integers, which calls `__aeabi_ldivmod` four times per sample. Linked with libgcc alone (`-nostartfiles -nostdlib --gc-sections`), the image is 2,676 bytes (`.text` 1,880, `.rodata` 788, `.ARM.exidx` 8), of which `__udivmoddi4` accounts for 700 bytes. The stack figure excludes the frame of `__aeabi_ldivmod`.
 
 Not measured: cycles or latency per sample on a Cortex-M device, and GPU time per evaluation of theta. A MAC count is not a latency; no time figure SHALL be derived from this table without a measurement on the target.
 
-##### Footprint with arm-none-eabi-gcc (captures workflow)
-
-The captures workflow builds the same units with arm-none-eabi-gcc 13.2.1 (Ubuntu package `15:13.2.rel1-2`) for Cortex-M4F at `-Os` (`-mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16`), and reads the sizes with `arm-none-eabi-size` and `firmware/tools/footprint.py`, and the stack frames with `-fstack-usage` and `-fcallgraph-info=su` (Figure 14). The table above, from zig cc 0.17.1, is kept unchanged; the two compilers give different figures for the same source.
-
-| Quantity | zig cc 0.17.1 (clang), table above | arm-none-eabi-gcc 13.2.1, captures workflow |
-|---|---|---|
-| hmm_filter.c text | 880 | 816 |
-| hmm_fc_s8_ref.c text | 330 | 198 |
-| exp2 table and generated model, rodata | 512 + 276 = 788 | 512 + 276 = 788 |
-| Filter state, bss | 16 | 16 |
-| Flash, filter and model objects | 1,998 | 1,802 |
-| Flash, linked with the compiler runtime (`.text` + `.rodata` + `.ARM.exidx`) | not measured | 1,880 + 788 + 8 = 2,676 |
-| `__udivmoddi4` (libgcc, called through `__aeabi_ldivmod`) | not measured | 700 |
-| Stack frames along the deepest call path | hmm_step 176, hmm_fc_s8 28, hmm_fc_s8_ref 48: at most 252 | hmm_step 168, hmm_fc_s8 0 (tail call), hmm_fc_s8_ref 40, hmm_requantize 8: 216 |
-| Frames of hmm_requantize and hmm_exp_neg_q15 | 0 and 0 | 8 and 8 |
-
-The gcc stack figure is the sum of the frames that `-fstack-usage` reports along the call graph that `-fcallgraph-info` reports (hmm_step, hmm_fc_s8, hmm_fc_s8_ref, hmm_requantize); it excludes the frame of `__aeabi_ldivmod`. The linked figure comes from linking the filter, model and state alone with `-nostartfiles -nostdlib --gc-sections` and libgcc, so it includes the 64-bit division routine that the README table excludes.
-
 The CMSIS-NN backend, built against CMSIS-NN v8.0.0 and the CMSIS_6 v6.4.0 core headers, adds `hmm_fc_s8_cmsis.c` (176 bytes of text and a 256-byte scratch buffer in bss) and the kernels `arm_fully_connected_s8` (110), `arm_fully_connected_s8_get_buffer_size` and its variants (14) and `arm_nn_vec_mat_mult_t_s8` (1,290), 1,590 bytes of text in total (Figure 15).
 
-Status recorded by the captures workflow: both builds of the firmware tests, with the portable kernel and with CMSIS-NN v8.0.0 `arm_fully_connected_s8` (`HMM_USE_CMSIS_NN`), were cross-compiled for Cortex-M4F and run under `qemu-arm` 8.2.2 user-mode emulation with semihosting. Both report `bit_exact_vs_python=yes` over the 600 committed test vectors and `firmware tests: all passed` (Figure 15). QEMU emulates the instruction set only; it gives no cycle count, and no latency is claimed. The statements in [Scope](#scope) that the CMSIS-NN backend has been checked against stub headers only are retained as written before this capture; no CMSIS-NN release is pinned in this repository, and v8.0.0 is the release the capture used.
+Status recorded by the captures workflow: both builds of the firmware tests, with the portable kernel and with CMSIS-NN v8.0.0 `arm_fully_connected_s8` (`HMM_USE_CMSIS_NN`), were cross-compiled for Cortex-M4F and run under `qemu-arm` 8.2.2 user-mode emulation with semihosting. Both report `bit_exact_vs_python=yes` over the 600 committed test vectors and `firmware tests: all passed` (Figure 15). QEMU emulates the instruction set only; it gives no cycle count, and no latency is claimed. No CMSIS-NN release is pinned in this repository; v8.0.0 is the release the capture used.
 
 ### 4. CARLA simulation loop and the Android application
 
@@ -324,8 +306,8 @@ Out of scope:
 
 Known limitations:
 
-- The CUDA code in `gpu/` has not been compiled or run. It MUST be built and checked against `gpu/compare.py` before any GPU result is reported.
-- The CMSIS-NN backend has been checked against stub headers only. It MUST be built against the pinned CMSIS-NN release before use on a target.
+- The CUDA code in `gpu/` compiles with nvcc 12.9 against cuDSS 0.7.1.6 but not against cuDSS 1.0.0.35 (Figure 12). It has not been linked or run, and it MUST be checked against `gpu/compare.py` on a GPU before any GPU result is reported.
+- The CMSIS-NN backend is bit-exact against the Python reference with CMSIS-NN v8.0.0 under QEMU (Figure 15). No release is pinned, and it has not run on a physical target.
 - All test data are simulated with fixed seeds.
 
 ### Lineage
@@ -362,13 +344,13 @@ A dashboard-mounted phone can detect lane markings and estimate the Standard Dev
 
 | Layer | Component | Role | Status in this repository |
 |---|---|---|---|
-| Host, NVIDIA | CUDA | GPU runtime for estimation | Code in `gpu/`; not compiled or run |
+| Host, NVIDIA | CUDA | GPU runtime for estimation | Code in `gpu/`; compiles with nvcc 12.9 against cuDSS 0.7.1.6; not linked or run |
 | Host, NVIDIA | cuSPARSE | Q in CSR form, sparse products (`cusparseSpMM`) | Used in `gpu/src/spde_gpu.cu` |
 | Host, NVIDIA | cuDSS | SPD Cholesky: analysis once, refactorisation and solve per theta, factor diagonal for log\|Q\| | Used in `gpu/src/spde_gpu.cu` |
 | Host, NVIDIA | cuSOLVER | Dense sub-problems; sparse Cholesky module named in the case study, now deprecated | Not used |
 | Host, CPU reference | Python, NumPy, SciPy | FEM assembly, symbolic and numeric Cholesky, estimation, export | Tested in CI |
-| Device, Arm | Cortex-M4F | Target for the int8 forward filter | Cross-compiled with zig cc 0.17.1 (clang) at `-Os`; 1,998 bytes of flash, 16 bytes of state, at most 252 bytes of stack |
-| Device, Arm | CMSIS-NN | `arm_fully_connected_s8` for A^T alpha_(t-1) | Backend written; checked against stub headers only |
+| Device, Arm | Cortex-M4F | Target for the int8 forward filter | Cross-compiled with arm-none-eabi-gcc 13.2.1 at `-Os`; 1,802 bytes of flash, 16 bytes of state, at most 216 bytes of stack; run under QEMU |
+| Device, Arm | CMSIS-NN | `arm_fully_connected_s8` for A^T alpha_(t-1) | Built against CMSIS-NN v8.0.0; bit-exact under QEMU |
 | Device, portable | C99 | Reference int8 kernel with identical integer semantics | Built with gcc in CI; bit-exact with the Python integer version |
 | Simulation | CARLA, OpenCV, R-CNN | Closed loop described in the journal entry | Design only |
 
@@ -487,7 +469,7 @@ The following figures are produced by the tests on simulated data.
 | int8 against float, mean absolute belief error             | 0.0020                                     |
 | C kernel against Python integer mirror                      | bit-exact                                  |
 
-The case study reports 37,615 factor nonzeros for its scrambled order. That count depends on the random relabelling and is not reproduced here; the RCM count of 11,378 is reproduced exactly. The figure can be regenerated with `python python/tools/fill_in_figure.py docs/spde-fill-in.png`.
+The figure can be regenerated with `python python/tools/fill_in_figure.py docs/spde-fill-in.png`.
 
 Not yet measured: GPU timings, device latency on Cortex-M, and accuracy on recorded drives. No latency claim SHALL be made until these are measured.
 
