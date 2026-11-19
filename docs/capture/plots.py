@@ -132,11 +132,6 @@ cs = ax.contourf(np.exp(lk), np.exp(lt), L - L.max(), levels=np.linspace(-200, 0
 ax.contour(np.exp(lk), np.exp(lt), L - L.max(), levels=[-20, -10, -5, -2], colors="w", linewidths=0.6)
 ax.plot(kappa, tau, "w+", ms=14, mew=2, label="true (simulation)")
 ax.plot(k_hat, t_hat, "rx", ms=10, mew=2, label="Nelder-Mead estimate")
-ax.set_xscale("log")
-ax.set_yscale("log")
-for axis in (ax.xaxis, ax.yaxis):
-    axis.set_major_formatter(matplotlib.ticker.ScalarFormatter())
-    axis.set_minor_formatter(matplotlib.ticker.NullFormatter())
 ax.set_xlabel("kappa")
 ax.set_ylabel("tau")
 ax.legend(loc="upper right", fontsize=9)
