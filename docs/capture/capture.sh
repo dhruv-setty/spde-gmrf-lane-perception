@@ -102,24 +102,36 @@ if [ "${1:-}" = step ]; then step "$2"; exit $?; fi
 # Tool versions.
 { python --version; python -c "import numpy, scipy, matplotlib; print('numpy', numpy.__version__, 'scipy', scipy.__version__, 'matplotlib', matplotlib.__version__)"
   gcc --version | head -1; arm-none-eabi-gcc --version | head -1; qemu-arm --version | head -1
-  ffmpeg -version | head -1; convert -version | head -1; xterm -version
+  convert -version | head -1; xterm -version
   command -v nvcc >/dev/null && nvcc --version | tail -2; } > "$shots/versions.log" 2>&1
 
 # 1. Plots from the Python reference.
 python docs/capture/plots.py "$shots" || echo "plots.py failed" >> "$shots/plots.log"
 python python/tools/fill_in_figure.py "$shots/plot_fill_in_regenerated.png" | tee -a "$shots/plots.log"
 
-# 2. Still frames from the four CARLA clips: frames 0, 100, 200 and 299 of each, at the
-#    320 x 192 capture resolution, one row per clip.
+# 2. Still frames from the four CARLA clips: frames 0, 100, 200 and 299 of each (t = n / 20 s),
+#    scaled to the 320 x 192 capture resolution, one row per clip. ffmpeg is the static build
+#    shipped with the imageio-ffmpeg wheel; labels are added with ImageMagick.
+FFMPEG=$(python -c "import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())")
+"$FFMPEG" -version | head -1 >> "$shots/versions.log"
 rows=()
+: > "$shots/carla_frame_grid.log"
 for clip in carla_town10hd_urban_clear_ep04 carla_town10hd_urban_clear_ep09 carla_town10hd_urban_rain_sunset_ep19 carla_town04_highway_wet_sunset_ep18; do
-  ffmpeg -loglevel error -y -i "assets/videos/$clip.mp4" -vf \
-    "select='eq(n\,0)+eq(n\,100)+eq(n\,200)+eq(n\,299)',scale=320:192:flags=area,drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:text='${clip#carla_}  frame %{n}  t %{pts\:hms}':x=6:y=6:fontsize=11:fontcolor=white:box=1:boxcolor=black@0.6,tile=4x1:padding=4:color=white" \
-    -fps_mode passthrough -frames:v 1 "$OUT/row_$clip.png" && rows+=("$OUT/row_$clip.png")
+  "$FFMPEG" -hide_banner -i "assets/videos/$clip.mp4" 2>&1 | grep -E "Duration|Stream" >> "$shots/carla_frame_grid.log"
+  "$FFMPEG" -loglevel error -y -i "assets/videos/$clip.mp4" -vf \
+    "select='eq(n\,0)+eq(n\,100)+eq(n\,200)+eq(n\,299)',scale=320:192:flags=area,tile=4x1:padding=4:color=white" \
+    -fps_mode passthrough -frames:v 1 "$OUT/row_$clip.png" || continue
+  args=(-annotate +5+22 "${clip#carla_}")
+  i=0
+  for n in 0 100 200 299; do
+    args+=(-annotate "+$((i * 324 + 5))+5" "frame $n, t = $(python -c "print(f'{$n / 20:.2f}')") s")
+    i=$((i + 1))
+  done
+  convert "$OUT/row_$clip.png" -font DejaVu-Sans -pointsize 11 -fill white -undercolor '#000000a0' -gravity NorthWest \
+    "${args[@]}" "$OUT/row_$clip.png"
+  rows+=("$OUT/row_$clip.png")
 done
 convert "${rows[@]}" -background white -splice 0x4 -append -bordercolor white -border 4 "$shots/carla_frame_grid.png"
-ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,profile,width,height,r_frame_rate,nb_frames \
-  -of compact assets/videos/*.mp4 > "$shots/carla_frame_grid.log" 2>&1
 
 # 3. Terminals on a virtual display.
 export DISPLAY=:99
