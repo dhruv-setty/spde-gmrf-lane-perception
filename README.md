@@ -208,6 +208,16 @@ The study assumes that perception does not need to complete within one control c
 
 The application bundles four 15-second dashcam clips rendered in CARLA under [`assets/videos/`](assets/videos/), as sample input for the lane detector: two clear-weather urban drives and one rain-at-sunset urban drive in Town10HD, and one wet highway drive at sunset in Town04. They are H.264 Baseline at 640 x 384 and 20 frames per second, so they play on older Android devices. The clips come from the CC BY 4.0 mini-carla-192x320 dataset rendered with CARLA 0.9.16; per-clip episode, frame range, camera intrinsics and licence are in [`assets/videos/README.md`](assets/videos/README.md). No lane detection accuracy has been measured on them.
 
+Each preview below is a 5-second excerpt; select it to open the full clip.
+
+| Town10HD, urban, clear | Town10HD, urban, clear |
+|---|---|
+| [![Town10HD urban drive in clear weather, episode 4](docs/videos/carla_town10hd_urban_clear_ep04.gif)](assets/videos/carla_town10hd_urban_clear_ep04.mp4) | [![Town10HD urban drive in clear weather, episode 9](docs/videos/carla_town10hd_urban_clear_ep09.gif)](assets/videos/carla_town10hd_urban_clear_ep09.mp4) |
+| **Town10HD, urban, rain at sunset** | **Town04, highway, wet at sunset** |
+| [![Town10HD urban drive in rain at sunset, episode 19](docs/videos/carla_town10hd_urban_rain_sunset_ep19.gif)](assets/videos/carla_town10hd_urban_rain_sunset_ep19.mp4) | [![Town04 highway drive on a wet road at sunset, episode 18](docs/videos/carla_town04_highway_wet_sunset_ep18.gif)](assets/videos/carla_town04_highway_wet_sunset_ep18.mp4) |
+
+Video frames: CARLA simulator via mini-carla-192x320, CC BY 4.0.
+
 ## Method
 
 The model has a heavy part and a light part. Estimating the spatial field and its parameters means factorising large sparse precision matrices, which belongs on a GPU. Deciding the current behavioural mode means one small recursion per sample, which belongs on the device.
@@ -414,6 +424,7 @@ gpu/               CUDA estimation with cuSPARSE and cuDSS, CMake, CPU compariso
 firmware/          C99 forward filter, portable int8 kernel, CMSIS-NN backend, host tests,
                    Cortex-M4F footprint script
 assets/videos/     CARLA dashcam clips bundled with the application, with provenance
+docs/videos/       GIF previews of the CARLA clips shown in this README
 docs/              regenerated fill-in figure; docs/figures/ holds the case study figures
 .github/workflows/ continuous integration
 ```
